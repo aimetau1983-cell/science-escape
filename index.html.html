@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>浮力：形狀的奧秘 - 科學密室逃脫</title>
+    <style>
+        :root {
+            --gold: #D4AF37;
+            --water: rgba(30, 144, 255, 0.6);
+            --bg-black: #000000;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-black);
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #game-container {
+            width: 800px;
+            height: 600px;
+            border: 2px solid var(--gold);
+            position: relative;
+            background: radial-gradient(circle, #1a1a1a 0%, #000000 100%);
+            box-shadow: 0 0 30px rgba(212, 175, 55, 0.2);
+        }
+
+        .screen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .hidden { display: none !important; }
+
+        h1 { color: var(--gold); font-size: 3rem; text-shadow: 2px 2px 10px rgba(212,175,55,0.5); }
+        p { font-size: 1.2rem; line-height: 1.6; max-width: 80%; }
+        
+        button {
+            background: transparent;
+            color: var(--gold);
+            border: 1px solid var(--gold);
+            padding: 10px 30px;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 20px;
+        }
+
+        button:hover {
+            background: var(--gold);
+            color: black;
+            box-shadow: 0 0 15px var(--gold);
+        }
+
+        canvas {
+            border: 1px solid #333;
+            background: #050505;
+            margin-bottom: 20px;
+        }
+
+        .controls { width: 600px; }
+        input[type=range] { width: 100%; cursor: pointer; accent-color: var(--gold); }
+        
+        input[type=text] {
+            background: #111;
+            border: 1px solid var(--gold);
+            color: white;
+            padding: 10px;
+            font-size: 1.2rem;
+            text-align: center;
+            letter-spacing: 5px;
+        }
+
+        #feedbackText { color: var(--gold); font-weight: bold; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="cover-screen" class="screen">
+        <h1>浮力：形狀的奧秘</h1>
+        <p>探索阿基米德未曾言說的排水真理</p>
+        <button onclick="startGame()">開始挑戰</button>
+    </div>
+
+    <div id="story-screen" class="screen hidden">
+        <h2 style="color: var(--gold);">導師的啟示</h2>
+        <p id="tutor-text">阿基米德說：「不是所有形狀都能獲得海神的眷顧...只有懂得分配體積的智者，才能在深淵中浮起。」</p>
+        <button onclick="goToLab()">進入實驗</button>
+    </div>
+
+    <div id="lab-screen" class="screen hidden">
+        <canvas id="simCanvas" width="600" height="400"></canvas>
+        <div class="controls">
+            <input type="range" id="shapeSlider" min="0" max="100" value="0" oninput="updateSimulation()">
+            <div id="feedbackText">目前形狀：沉重的金屬球</div>
+        </div>
+        <button id="next-to-boss" class="hidden" onclick="goToBoss()">形狀已覺醒，前往出口</button>
+    </div>
+
+    <div id="boss-screen" class="screen hidden">
+        <h2 style="color: #ff4444;">最後的試煉</h2>
+        <p>「唯有交出正確的科學代碼，方能離開此處！」</p>
+        <input type="text" id="passInput" placeholder="ENTER CODE">
+        <button onclick="checkPass()">攻擊</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    const slider = document.getElementById('shapeSlider');
+    const feedbackText = document.getElementById('feedbackText');
+
+    function startGame() {
+        showScreen('story-screen');
+    }
+
+    function goToLab() {
+        showScreen('lab-screen');
+        updateSimulation();
+    }
+
+    function goToBoss() {
+        showScreen('boss-screen');
+    }
+
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+        document.getElementById(id).classList.remove('hidden');
+    }
+
+    function updateSimulation() {
+        const val = parseInt(slider.value);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 1. 繪製水體 (y=200 to 400)
+        ctx.fillStyle = 'rgba(30, 144, 255, 0.4)';
+        ctx.fillRect(0, 200, canvas.width, 200);
+        
+        // 2. 繪製水面線
+        ctx.strokeStyle = '#1E90FF';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, 200);
+        ctx.lineTo(canvas.width, 200);
+        ctx.stroke();
+
+        let shapeName = "";
+        let isFloating = val > 80;
+
+        if (!isFloating) {
+            // 沉底位置
+            const targetY = 350;
+            ctx.fillStyle = '#888';
+            ctx.strokeStyle = '#666';
+
+            if (val <= 20) {
+                shapeName = "沉重的金屬球";
+                drawCircle(300, targetY, 30);
+            } else if (val <= 40) {
+                shapeName = "實心方塊";
+                ctx.fillRect(270, targetY - 30, 60, 60);
+            } else if (val <= 60) {
+                shapeName = "銳利三角錐";
+                drawTriangle(300, targetY, 40);
+            } else {
+                shapeName = "暗淡星體";
+                drawStar(300, targetY, 5, 30, 15);
+            }
+            document.getElementById('next-to-boss').classList.add('hidden');
+        } else {
+            // 浮起位置 (y=200 附近呈現半浮半沉)
+            shapeName = "黃金 U 型船";
+            drawUBoat(300, 200); // 船底會沉入水下
+            document.getElementById('next-to-boss').classList.remove('hidden');
+        }
+
+        feedbackText.innerText = `目前狀態：${shapeName} ${isFloating ? '(已獲得浮力！)' : '(排水不足，沉沒中)'}`;
+    }
+
+    // 繪製 U 型船 (上寬下窄)
+    function drawUBoat(x, y) {
+        ctx.save();
+        ctx.fillStyle = "#D4AF37";
+        ctx.strokeStyle = "#B8860B";
+        ctx.lineWidth = 2;
+
+        ctx.beginPath();
+        // 船的上緣在 y-20，船底在 y+40，y=200 為水面
+        // 起點 (左上)
+        ctx.moveTo(x - 60, y - 20); 
+        // 畫到右上
+        ctx.lineTo(x + 60, y - 20); 
+        // 畫右側曲線到底部
+        ctx.quadraticCurveTo(x + 50, y + 40, x + 30, y + 40);
+        // 畫底部平滑線
+        ctx.lineTo(x - 30, y + 40);
+        // 畫左側曲線回起點
+        ctx.quadraticCurveTo(x - 50, y + 40, x - 60, y - 20);
+        
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        
+        // 加上吃水裝飾
+        ctx.fillStyle = "rgba(0,0,0,0.1)";
+        ctx.fillRect(x - 50, y, 100, 40);
+        ctx.restore();
+    }
+
+    function drawCircle(x, y, r) {
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+    }
+
+    function drawTriangle(x, y, size) {
+        ctx.beginPath();
+        ctx.moveTo(x, y - size);
+        ctx.lineTo(x - size, y + size);
+        ctx.lineTo(x + size, y + size);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+    }
+
+    function drawStar(cx, cy, spikes, outerRadius, innerRadius) {
+        let rot = Math.PI / 2 * 3;
+        let x = cx;
+        let y = cy;
+        let step = Math.PI / spikes;
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - outerRadius);
+        for (let i = 0; i < spikes; i++) {
+            x = cx + Math.cos(rot) * outerRadius;
+            y = cy + Math.sin(rot) * outerRadius;
+            ctx.lineTo(x, y);
+            rot += step;
+
+            x = cx + Math.cos(rot) * innerRadius;
+            y = cy + Math.sin(rot) * innerRadius;
+            ctx.lineTo(x, y);
+            rot += step;
+        }
+        ctx.lineTo(cx, cy - outerRadius);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+    }
+
+    function checkPass() {
+        const input = document.getElementById('passInput').value.toUpperCase();
+        if (input === "TP-PASS") {
+            alert("✨ 阿基米德對你露出了微笑！你成功解開了浮力密碼，順利逃脫！ ✨");
+            location.reload();
+        } else {
+            alert("❌ 密碼錯誤！形狀的排水量不足以支撐你的勇氣。");
+        }
+    }
+</script>
+
+</body>
+</html>
